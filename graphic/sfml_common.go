@@ -2,6 +2,7 @@ package graphic
 
 import (
 	"github.com/telroshan/go-sfml/v2/graphics"
+	"github.com/telroshan/go-sfml/v2/window"
 )
 
 func getVector2u(x, y int) graphics.SfVector2u {
@@ -11,16 +12,30 @@ func getVector2u(x, y int) graphics.SfVector2u {
 	return vec
 }
 
-func getVector2f(x, y int) graphics.SfVector2f {
+func GetVector2f(x, y int) graphics.SfVector2f {
 	vec := graphics.NewSfVector2f()
 	vec.SetX(float32(x))
 	vec.SetY(float32(y))
 	return vec
 }
 
-func getVector2ff(x, y float32) graphics.SfVector2f {
+func GetVector2ff(x, y float32) graphics.SfVector2f {
 	vec := graphics.NewSfVector2f()
 	vec.SetX(float32(x))
 	vec.SetY(float32(y))
 	return vec
+}
+
+func GetIntRect(w, h int) graphics.SfIntRect {
+	rect := graphics.NewSfIntRect()
+	rect.SetWidth(w)
+	rect.SetHeight(h)
+	return rect
+}
+
+func GetContextSetting() window.SfContextSettings {
+	contextSetting := window.NewSfContextSettings()
+	// contextSetting.SetAntialiasingLevel(16)
+	contextSetting.SetAntialiasingLevel(1)
+	return contextSetting
 }

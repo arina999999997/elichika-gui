@@ -1,7 +1,7 @@
 package asset
 
 import (
-	"elichika/gui/locale"
+	"elichika/gui/sifas/locale"
 )
 
 var AssetMap = map[string]map[string]Asset{}

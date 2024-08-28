@@ -6,41 +6,100 @@ package graphic
 // - Coordinate y refer to up - down, the higher y is, the more to the bottom a point is.
 // - When refering to size, the width (x wise) come before the height (y wise).
 // - Things that need to be drawn are refered to as objects.
-// - Each object is treated as a rectangle. and has an internal resolution of HEIGHT * WIDTH.
-// - There is a special root object that is the whole window display.
-// - Each object can be a texture as is:
-//   - These can be refered to as prime objects.
-//   - The texture can be loaded from an image, or is a solid color, or even transparency.
-//   - If loaded from image, the texture and its internal resolution will be that image.
-//   - If filled with solid color, then the texture will require HEIGHT and WIDTH to be provided.
-//   - When draw, a texture is just drawn as is, on top of the canvas.
-// - If an object isn't a texture, then it must contain children objects:
-//   - These can be refered to as composite objects.
-//   - The children are kept in a list, based on the order of drawing:
-// 	   - To draw a composite objects, draw the childrens from first to last on the list.
-//   - Each child can have its own internal resolution, however:
-//     - It must be anchored to the parent based on the parent's internal resolution.
-//     - When anchoring, the top left corner along with the size in term of the parent's resolution must be provided.
-//     - The children's anchoring point can be anywhere, even outside the range of the parent.
-//     - The children's size can be anything, even higher than the size of the parent.
-//   - The childrens can in turn have children too, forming a tree structure.
-// - (TODO) Other than the above, it's possible to add transformation object:
-//   - These objects would take another object and transform it.
-//   - For example, mirroring, or stretch / squeezing.
-// - In any cases, all the object must form a strict "tree structure":
-//   - Prime objects can be reused and shared.
-//   - When a prime object is anchored to a parent object, the parent object gets its own "copy" of the prime object.
-//   - So every instance of the prime object being used is different.
-//   - To modify a specific instance of a prime object, we need to modify the actual instance, not the original object before anchoring.
-//   - In practice, we shouldn't be modifying prime objects when running:
-//     - It's obviously the case if this is a texture loaded from disk.
-//     - If the texture is uploaded by the user, we should be replacing the object with another object, not reloading.
-//     - The same for reloading / regenerating texture from code.
-//
+// - Each object is treated as a rectangle, and has an internal resolution of HEIGHT * WIDTH.
+// - Each object follow the (graphic) Object interface:
+//   - Has method for drawing on a Canvas at a specific position.
+//   -
+// - Each object can also follow one of the interfaces for polling events:
+//   - For example, object that follow the Clickable interface will response to click event.
+// 	 - The event handling is intended to make each event trigger the handling function for only one object.
+// - Generally, there's nothing stopping each object from implementing a complicated drawing function.
+// - However, we try to follow the tree model:
+//   - Each objects can either be its own drawable thing
+//   - Or it can contain other objects as a part of it
+//   - When drawing, draw the current "object" as a background, then recursively draw the child objects, so the child objects should be on top of the parent objects.
+//   - When handling event, try to handle event using the child objects first (recursively), then try to handle the event with the current object if it's still not handled.
+
+// TODO(gui): Maybe implement a prerender step that traverse through the tree top-down, allowing us to set things up before the bottom-up drawing process.
 import (
 	"runtime"
 )
 
 func init() { runtime.LockOSThread() }
+
+// A lot of freedom, it's up to the object to figure out how and where it need to do things to
+
+type Object interface {
+	// get the native width and height
+	GetWidth() int
+	GetHeight() int
+
+	// invalidate the cache, return true if NEWLY invalidated
+	InvalidateRenderCache() bool
+
+	// draw to its own canvas
+	Draw()
+
+	// create a Texture that is the whole object
+	ToTexture() *Texture
+}
+
+type ChildObject interface {
+	Object
+	GetParent() Object
+}
+
+type Clickable interface {
+	Object
+
+	// Return true if the click event is handled
+	OnClick(*Window, MouseButtonDownEvent) bool
+}
+
+type Focusable interface {
+	Clickable
+
+	SetFocus()
+	UnsetFocus()
+	HasFocus() bool
+}
+
+type Inputable interface {
+	Focusable
+	OnText(TextEvent) bool
+	OnPaste(PasteEvent) bool
+}
+
+type Enterable interface {
+	Inputable
+	OnEnter() bool
+}
+
+
+type Keyable interface {
+	Focusable
+	OnKey(KeyEvent) bool
+}
+
+
+type CompositeObject interface {
+	ForEach(func(Object))
+}
+
+type PollingCompositeObject interface {
+	CompositeObject
+	MapEvent(e Event, o Object) Event
+}
+
+// type Traceable interface {
+// 	Object
+// 	OnMouseMove()
+// }
+
+// type Scrollable interface {
+// 	Object
+// 	OnScrollUp()
+// 	OnScrollDown()
+// }
 
 // TODO(memory): This thing have lots of memory leak in it, so don't use it for anything that can result in leaks beyond controls

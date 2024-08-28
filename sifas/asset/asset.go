@@ -4,7 +4,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"elichika/assetdata"
-	"elichika/gui/locale"
+	"elichika/gui/sifas/locale"
 	"elichika/utils"
 	hwdecrypt "github.com/arina999999997/gohwdecrypt"
 
