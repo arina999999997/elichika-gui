@@ -4,7 +4,6 @@ import (
 	"elichika/gui/graphic"
 )
 
-// TODO(refactor): Move to separate file
 // a rectangle button
 // so click on the bounding box to click the button
 type RectButton struct {
@@ -20,6 +19,8 @@ type RectButton struct {
 
 	LeftClickHandler  func()
 	RightClickHandler func()
+
+	SyncFunc func()
 }
 
 // Own functions
@@ -43,6 +44,12 @@ func (rb *RectButton) SetText(text *graphic.Text) {
 
 func (rb *RectButton) SetTextString(text string) {
 	rb.Text.SetText(text)
+}
+
+func (rb *RectButton) TrySync() {
+	if rb.SyncFunc != nil {
+		rb.SyncFunc()
+	}
 }
 
 // Focusable
@@ -70,7 +77,6 @@ func (rb *RectButton) OnClick(w *graphic.Window, event graphic.MouseButtonDownEv
 	w.SetFocusObject(rb)
 
 	// no matter if the click is handled or not, the event will be considered handled
-
 	if (event.Button == graphic.MouseButtonLeft) && (rb.LeftClickHandler != nil) {
 		rb.LeftClickHandler()
 	}
@@ -126,13 +132,18 @@ func (rb *RectButton) ToTexture() *graphic.Texture {
 	return texture
 }
 
+// Child Object
+func (rb *RectButton) GetParent() graphic.Object {
+	return rb.Parent
+}
+
 func NewButton(parent graphic.Object, width, height int, text string, leftClickHandler func(), rightClickHandler func()) *RectButton {
 	button := &RectButton{
-		Parent: parent,
-		Width: width,
-		Height: height,
-		Texture: graphic.RGBATexture(0x7f7f7fff),
-		LeftClickHandler: leftClickHandler,
+		Parent:            parent,
+		Width:             width,
+		Height:            height,
+		Texture:           graphic.RGBATexture(0x7f7f7fff),
+		LeftClickHandler:  leftClickHandler,
 		RightClickHandler: rightClickHandler,
 	}
 	button.Text = graphic.NewText(button, text)

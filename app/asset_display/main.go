@@ -17,12 +17,11 @@ import (
 // clicking will cycle the assets
 
 type AssetDisplay struct {
-	AssetLabel   *graphic.Text
-	AssetTextbox *textbox.RectTextbox
-	LoadButton   *button.RectButton
-	LocaleButton *button.RectButton
-	ExtractButton*button.RectButton
-
+	AssetLabel    *graphic.Text
+	AssetTextbox  *textbox.RectTextbox
+	LoadButton    *button.RectButton
+	LocaleButton  *button.RectButton
+	ExtractButton *button.RectButton
 
 	AssetTexture *graphic.Texture
 
@@ -58,7 +57,7 @@ func (ad *AssetDisplay) Draw() {
 	ad.Canvas.DrawObject(ad.AssetTextbox, ad.AssetLabel.GetWidth(), 0, ad.AssetTextbox.GetWidth(), 50)
 	ad.Canvas.DrawObject(ad.LoadButton, 405, 0, ad.LoadButton.GetWidth(), 50)
 	ad.Canvas.DrawObject(ad.LocaleButton, 610, 0, ad.LocaleButton.GetWidth(), 50)
-	ad.Canvas.DrawObject(ad.ExtractButton, 815, 0,  ad.ExtractButton.GetWidth(), 50)
+	ad.Canvas.DrawObject(ad.ExtractButton, 815, 0, ad.ExtractButton.GetWidth(), 50)
 
 	if ad.AssetTexture != nil {
 		w, h := ad.AssetTexture.GetSize()
@@ -117,7 +116,6 @@ func main() {
 		}
 	}
 
-
 	displayAsset := func() {
 		texture, err := asset.LoadTexture(object.AssetTextbox.TextContent)
 		graphic.InvalidateRenderCache(object)
@@ -140,7 +138,6 @@ func main() {
 	object.LoadButton.LeftClickHandler = displayAsset
 	object.AssetTextbox.OnEnterFunc = displayAsset
 
-	
 	object.ExtractButton = &button.RectButton{
 		Width:   200,
 		Height:  50,

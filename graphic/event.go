@@ -1,7 +1,9 @@
 package graphic
+
 import (
 	"github.com/telroshan/go-sfml/v2/window"
 )
+
 // const (
 // 	EventTypeClick      int = 0
 // 	EventTypeRightClick int = 1
@@ -40,9 +42,9 @@ type KeyEvent = int
 var allowedKeyEvent = map[window.SfKeyCode]KeyEvent{}
 
 const (
-	KeyEventUp KeyEvent = 0
-	KeyEventDown KeyEvent = 1
-	KeyEventLeft KeyEvent = 2
+	KeyEventUp    KeyEvent = 0
+	KeyEventDown  KeyEvent = 1
+	KeyEventLeft  KeyEvent = 2
 	KeyEventRight KeyEvent = 3
 )
 
@@ -52,6 +54,7 @@ func init() {
 	allowedKeyEvent[window.SfKeyCode(window.SfKeyLeft)] = KeyEventLeft
 	allowedKeyEvent[window.SfKeyCode(window.SfKeyRight)] = KeyEventRight
 }
+
 // generic handle event function, return true if the event is handled
 // the event is always mapped to the native resolution of the object
 //
@@ -74,41 +77,41 @@ func HandleEvent(w *Window, o Object, e Event) bool {
 		}
 	}
 	switch e.(type) {
-		case MouseButtonDownEvent:
-			_, isClickable := o.(Clickable)
-			if isClickable {
-				return o.(Clickable).OnClick(w, e.(MouseButtonDownEvent))
+	case MouseButtonDownEvent:
+		_, isClickable := o.(Clickable)
+		if isClickable {
+			return o.(Clickable).OnClick(w, e.(MouseButtonDownEvent))
+		}
+	case TextEvent:
+		_, isInputable := o.(Inputable)
+		if isInputable {
+			if o.(Inputable).HasFocus() {
+				return o.(Inputable).OnText(e.(TextEvent))
 			}
-		case TextEvent:
-			_, isInputable := o.(Inputable)
-			if isInputable {
-				if o.(Inputable).HasFocus() {
-					return o.(Inputable).OnText(e.(TextEvent))
-				}
+		}
+	case PasteEvent:
+		_, isInputable := o.(Inputable)
+		if isInputable {
+			if o.(Inputable).HasFocus() {
+				return o.(Inputable).OnPaste(e.(PasteEvent))
 			}
-		case PasteEvent:
-			_, isInputable := o.(Inputable)
-			if isInputable {
-				if o.(Inputable).HasFocus() {
-					return o.(Inputable).OnPaste(e.(PasteEvent))
-				}
+		}
+	case EnterEvent:
+		_, isEnterable := o.(Enterable)
+		if isEnterable {
+			if o.(Enterable).HasFocus() {
+				return o.(Enterable).OnEnter()
 			}
-		case EnterEvent:
-			_, isEnterable := o.(Enterable)
-			if isEnterable {
-				if o.(Enterable).HasFocus() {
-					return o.(Enterable).OnEnter()
-				}
+		}
+	case KeyEvent:
+		_, isKeyable := o.(Keyable)
+		if isKeyable {
+			if o.(Keyable).HasFocus() {
+				return o.(Keyable).OnKey(e.(KeyEvent))
 			}
-		case KeyEvent:
-			_, isKeyable := o.(Keyable)
-			if isKeyable {
-				if o.(Keyable).HasFocus() {
-					return o.(Keyable).OnKey(e.(KeyEvent))
-				}
-			}
-		default:
-			panic("Unsupported event type")
+		}
+	default:
+		panic("Unsupported event type")
 	}
 	return false
 }

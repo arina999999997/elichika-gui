@@ -10,6 +10,7 @@ type sfFont = graphics.Struct_SS_sfFont
 type Font struct {
 	font sfFont
 }
+
 var defaultFont = *GetFont("gui/fonts/FOT-SkipStd-B.otf")
 var loadedFont = map[string]*Font{}
 
@@ -22,7 +23,7 @@ func GetFont(path string) *Font {
 	if err != nil {
 		return nil
 	}
-	
+
 	font = &Font{}
 	font.font = graphics.SfFont_createFromFile(path)
 	loadedFont[path] = font

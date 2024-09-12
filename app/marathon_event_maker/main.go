@@ -1,9 +1,8 @@
 package main
 
 import (
-
 	"elichika/gui/app/marathon_event_maker/memo_maker"
-	
+
 	"elichika/gui/graphic"
 	// "elichika/gui/sifas/locale"
 	"elichika/gui/sifas/scene/event_marathon"
@@ -117,7 +116,7 @@ func main() {
 	// })
 
 	// window.SetObject(selector)
-	backgroundPicker := memo_maker.NewMemoMaker(nil)
-	window.SetObject(backgroundPicker)
+	BackgroundConfig := memo_maker.NewMemoMaker(nil)
+	window.SetObject(BackgroundConfig)
 	window.Display()
 }

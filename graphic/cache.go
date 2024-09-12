@@ -1,8 +1,14 @@
 package graphic
 
+// import "fmt"
 // Invalidate the cache of this object
 // Implying that the cache of the parents objects all have to be removed too, because they would presumablly change
 func InvalidateRenderCache(object Object) {
+	if object == nil {
+		return
+	}
+	// fmt.Printf("invalidate: %T\n", object)
+	// fmt.Println("invalidate: ", object)
 	// if already invalidated then return
 	if !object.InvalidateRenderCache() {
 		return

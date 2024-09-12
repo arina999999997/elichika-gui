@@ -27,7 +27,10 @@ type RectTextbox struct {
 
 	OnTextUpdateFunc func()
 	OnEnterFunc      func()
-	OnKeyFunc            map[graphic.KeyEvent]func()
+	OnKeyFunc        map[graphic.KeyEvent]func()
+
+	// Optional function to sync the value displayed in the textbox from some value in memory
+	SyncFunc func()
 }
 
 func (rt *RectTextbox) SetText(s string) {
@@ -39,10 +42,10 @@ func NewLabelAndRectTextbox(parent graphic.Object, width, height int, label stri
 	text := graphic.NewText(parent, label)
 	text.SetHeight(height)
 	textbox := &RectTextbox{
-		Parent: parent,
-		Width: width - text.GetWidth(),
-		Height: height,
-		Texture: graphic.RGBATexture(0x2f2f2fff),
+		Parent:       parent,
+		Width:        width - text.GetWidth(),
+		Height:       height,
+		Texture:      graphic.RGBATexture(0x2f2f2fff),
 		FocusTexture: graphic.RGBATexture(0x7f7f7fff),
 	}
 	if textbox.Width <= 0 {
@@ -51,17 +54,16 @@ func NewLabelAndRectTextbox(parent graphic.Object, width, height int, label stri
 	return text, textbox
 }
 
-
 func NewLabelAndRectTextboxes(parent graphic.Object, width, height int, label string, textboxCount, reservedGap int) (*graphic.Text, []*RectTextbox) {
 	text := graphic.NewText(parent, label)
 	text.SetHeight(height)
 	textboxes := []*RectTextbox{}
 	for i := 0; i < textboxCount; i++ {
 		textbox := &RectTextbox{
-			Parent: parent,
-			Width: (width - text.GetWidth() - reservedGap) / textboxCount,
-			Height: height,
-			Texture: graphic.RGBATexture(0x2f2f2fff),
+			Parent:       parent,
+			Width:        (width - text.GetWidth() - reservedGap) / textboxCount,
+			Height:       height,
+			Texture:      graphic.RGBATexture(0x2f2f2fff),
 			FocusTexture: graphic.RGBATexture(0x7f7f7fff),
 		}
 		if textbox.Width <= 0 {
@@ -71,8 +73,6 @@ func NewLabelAndRectTextboxes(parent graphic.Object, width, height int, label st
 	}
 	return text, textboxes
 }
-
-
 
 // Object
 func (rt *RectTextbox) GetWidth() int {
@@ -112,7 +112,7 @@ func (rt *RectTextbox) Draw() {
 		textTexture := rt.Text.ToTexture()
 		textTexture.StyleType = graphic.StyleTypeNone
 		tW, tH := textTexture.GetSize()
-		rt.Canvas.DrawTexture(textTexture, 0, 0, tW,  tH)
+		rt.Canvas.DrawTexture(textTexture, 0, 0, tW, tH)
 	}
 	rt.Canvas.Finalize()
 }
@@ -214,13 +214,39 @@ func (rt *RectTextbox) OnKey(key graphic.KeyEvent) bool {
 
 func (rt *RectTextbox) SetOnKeyFunc(key graphic.KeyEvent, f func()) {
 	if rt.OnKeyFunc == nil {
-		rt.OnKeyFunc= map[graphic.KeyEvent]func(){}
+		rt.OnKeyFunc = map[graphic.KeyEvent]func(){}
 	}
 	rt.OnKeyFunc[key] = f
 }
 
-// Input constrants functions
+// typed getters / setters , assuming the values are correct
+func (rt *RectTextbox) GetInt() int {
+	value, _ := strconv.Atoi(rt.TextContent)
+	return value
+}
+func (rt *RectTextbox) SetInt(value int) {
+	graphic.InvalidateRenderCache(rt)
+	rt.TextContent = strconv.Itoa(value)
+}
 
+func (rt *RectTextbox) GetHex() uint {
+	value, _ := strconv.ParseUint(rt.TextContent, 16, 64)
+	return uint(value)
+}
+func (rt *RectTextbox) SetHex(value uint) {
+	rt.TextContent = strconv.FormatUint(uint64(value), 16)
+}
+
+func (rt *RectTextbox) GetFloat() float32 {
+	value, _ := strconv.ParseFloat(rt.TextContent, 32)
+	return float32(value)
+}
+func (rt *RectTextbox) SetFloat(value float32) {
+	graphic.InvalidateRenderCache(rt)
+	rt.TextContent = strconv.FormatFloat(float64(value), 'f', -1, 32)
+}
+
+// value transforming functions
 func (rt *RectTextbox) ForceInts() {
 	for i, r := range rt.TextContent {
 		good := (r >= '0') && (r <= '9')
@@ -234,14 +260,13 @@ func (rt *RectTextbox) ForceInts() {
 
 func (rt *RectTextbox) ForceIntRange(low, high int) {
 	rt.ForceInts()
-	if rt.TextContent != "" {
-		value, _ := strconv.Atoi(rt.TextContent)
-		if value > high {
-			rt.TextContent = strconv.Itoa(high)
-		} else if value < low {
-			rt.TextContent = strconv.Itoa(low)
-		}
+	value := rt.GetInt()
+	if value > high {
+		value = high
+	} else if value < low {
+		value = low
 	}
+	rt.SetInt(value)
 }
 
 func (rt *RectTextbox) ForceFloats() {
@@ -258,47 +283,191 @@ func (rt *RectTextbox) ForceFloats() {
 	}
 }
 
-func (rt *RectTextbox) ForceFloatRange(low, high float64) {
+func (rt *RectTextbox) ForceFloatRange(low, high float32) {
 	rt.ForceFloats()
 	if rt.TextContent != "" {
-		value, _ := strconv.ParseFloat(rt.TextContent, 64)
+		f64, _ := strconv.ParseFloat(rt.TextContent, 32)
+		value := float32(f64)
 		if value > high {
-			rt.TextContent = strconv.FormatFloat(high, 'f', -1, 64)
+			value = high
 		} else if value < low {
-			rt.TextContent = strconv.FormatFloat(low, 'f', -1, 64)
+			value = low
 		}
+		rt.SetFloat(value)
 	}
 }
 
 // Helper functions for special inputs
-
 func (rt *RectTextbox) SetNextInt() {
-	graphic.InvalidateRenderCache(rt)
 	rt.ForceInts()
-	value, _ := strconv.Atoi(rt.TextContent)
-	rt.TextContent = strconv.Itoa(value + 1)
+	rt.SetInt(rt.GetInt() + 1)
 }
 
 func (rt *RectTextbox) SetPrevInt() {
-	graphic.InvalidateRenderCache(rt)
 	rt.ForceInts()
-	value, _ := strconv.Atoi(rt.TextContent)
-	rt.TextContent = strconv.Itoa(value - 1)
+	rt.SetInt(rt.GetInt() - 1)
 }
 
-func (rt *RectTextbox) SetNextFloat(delta float64, significant int) {
+func (rt *RectTextbox) SetNextFloat(delta float32, significant int) {
 	graphic.InvalidateRenderCache(rt)
 	rt.ForceFloats()
-	f64, _ := strconv.ParseFloat(rt.TextContent, 64)
-	rt.TextContent = strconv.FormatFloat(f64 + delta, 'f', significant, 64)
+	f64 := rt.GetFloat()
+	// set float use max significant, so we need to do this
+	rt.TextContent = strconv.FormatFloat(float64(f64+delta), 'f', significant, 32)
 }
 
+// Helpers for setting up commonly used type of textboxes
 
-// TODO(gui): This need to check for whether a modulo operation is necessary, otherwise it will overwrite the current data and we can't delete
-// func (rt *RectTextbox) FloatMod(mod float64, significant int) {
-// 	graphic.InvalidateRenderCache(rt)
-// 	rt.ForceFloats()
-// 	f64, _ := strconv.ParseFloat(rt.TextContent, 64)
-// 	f64 = math.Mod(f64, mod)
-// 	rt.TextContent = strconv.FormatFloat(f64, 'f', significant, 64)
-// }
+func (rt *RectTextbox) SetStringSettingTextbox(defaultValue string, value *string) {
+	rt.TextContent = defaultValue
+	if value != nil {
+		*value = defaultValue
+		rt.OnTextUpdateFunc = func() {
+			*value = rt.TextContent
+		}
+		rt.SyncFunc = func() {
+			rt.TextContent = *value
+		}
+	}
+
+}
+
+// A textbox where user can use UP and DOWN key to tune the values
+// TODO(gui): Maybe scrolling too
+// if low < high, then the values are constrained to that range, otherwise the values are not constrained
+// if value is not nil, then value is updated every time the text is updated
+func (rt *RectTextbox) SetIntSettingTextbox(defaultValue, lowValue, highValue int, value *int) {
+	rt.SetInt(defaultValue)
+	if lowValue < highValue {
+		if (defaultValue < lowValue) || (defaultValue > highValue) {
+			panic("wrongly setup int setting text box")
+		}
+		rt.OnTextUpdateFunc = func() {
+			rt.ForceIntRange(lowValue, highValue)
+			if value != nil {
+				*value = rt.GetInt()
+			}
+		}
+	} else if value != nil {
+		rt.OnTextUpdateFunc = func() {
+			*value = rt.GetInt()
+		}
+	}
+	if value != nil {
+		*value = defaultValue
+		rt.SyncFunc = func() {
+			rt.SetInt(*value)
+		}
+	}
+	rt.SetOnKeyFunc(graphic.KeyEventUp, func() {
+		rt.SetNextInt()
+		if rt.OnTextUpdateFunc != nil {
+			rt.OnTextUpdateFunc()
+		}
+	})
+	rt.SetOnKeyFunc(graphic.KeyEventDown, func() {
+		rt.SetPrevInt()
+		if rt.OnTextUpdateFunc != nil {
+			rt.OnTextUpdateFunc()
+		}
+	})
+}
+
+// coordinate textboxs are a pair of textboxes where one control x and one control y
+// instead of the standard up and down for increase and decrease, we use up down left right to move the coordinate
+// in that direction when either of the textboxes are focused
+// if x and y is not nil, then those values are updated along with the text as well
+func SetCoordinateTextboxes(xTextbox, yTextbox *RectTextbox, xDefault, yDefault, xLow, yLow, xHigh, yHigh int, x, y *int) {
+	xTextbox.SetIntSettingTextbox(xDefault, xLow, xHigh, x)
+	yTextbox.SetIntSettingTextbox(yDefault, yLow, yHigh, y)
+	leftKeyFunc := func() {
+		xTextbox.SetPrevInt()
+		if xTextbox.OnTextUpdateFunc != nil {
+			xTextbox.OnTextUpdateFunc()
+		}
+	}
+	rightKeyFunc := func() {
+		xTextbox.SetNextInt()
+		if xTextbox.OnTextUpdateFunc != nil {
+			xTextbox.OnTextUpdateFunc()
+		}
+	}
+	upKeyFunc := func() {
+		yTextbox.SetPrevInt()
+		if yTextbox.OnTextUpdateFunc != nil {
+			yTextbox.OnTextUpdateFunc()
+		}
+	}
+	downKeyFunc := func() {
+		yTextbox.SetNextInt()
+		if yTextbox.OnTextUpdateFunc != nil {
+			yTextbox.OnTextUpdateFunc()
+		}
+	}
+
+	xTextbox.SetOnKeyFunc(graphic.KeyEventLeft, leftKeyFunc)
+	xTextbox.SetOnKeyFunc(graphic.KeyEventRight, rightKeyFunc)
+	xTextbox.SetOnKeyFunc(graphic.KeyEventUp, upKeyFunc)
+	xTextbox.SetOnKeyFunc(graphic.KeyEventDown, downKeyFunc)
+	yTextbox.SetOnKeyFunc(graphic.KeyEventLeft, leftKeyFunc)
+	yTextbox.SetOnKeyFunc(graphic.KeyEventRight, rightKeyFunc)
+	yTextbox.SetOnKeyFunc(graphic.KeyEventUp, upKeyFunc)
+	yTextbox.SetOnKeyFunc(graphic.KeyEventDown, downKeyFunc)
+}
+
+// A textbox where user can use to input hex values, mostly used for RGBA colors
+func (rt *RectTextbox) SetHexSettingTextbox(defaultValue uint, value *uint) {
+	rt.SetHex(defaultValue)
+	if value != nil {
+		*value = defaultValue
+		rt.SyncFunc = func() {
+			rt.SetHex(*value)
+		}
+		rt.OnTextUpdateFunc = func() {
+			*value = rt.GetHex()
+		}
+	}
+}
+
+func (rt *RectTextbox) SetFloatSettingTextbox(defaultValue, lowValue, highValue, step float32, significantDigit int, value *float32) {
+	rt.SetFloat(defaultValue)
+	if lowValue < highValue {
+		if (defaultValue < lowValue) || (defaultValue > highValue) {
+			panic("wrongly setup float setting text box")
+		}
+		rt.OnTextUpdateFunc = func() {
+			rt.ForceFloatRange(lowValue, highValue)
+			if value != nil {
+				*value = rt.GetFloat()
+			}
+		}
+	} else if value != nil {
+		rt.OnTextUpdateFunc = func() {
+			*value = rt.GetFloat()
+		}
+	}
+	if value != nil {
+		*value = defaultValue
+		rt.SyncFunc = func() {
+			rt.SetFloat(*value)
+		}
+	}
+	rt.SetOnKeyFunc(graphic.KeyEventUp, func() {
+		rt.SetNextFloat(step, significantDigit)
+		if rt.OnTextUpdateFunc != nil {
+			rt.OnTextUpdateFunc()
+		}
+	})
+	rt.SetOnKeyFunc(graphic.KeyEventDown, func() {
+		rt.SetNextFloat(-step, significantDigit)
+		if rt.OnTextUpdateFunc != nil {
+			rt.OnTextUpdateFunc()
+		}
+	})
+}
+
+func (rt *RectTextbox) TrySync() {
+	if rt.SyncFunc != nil {
+		rt.SyncFunc()
+	}
+}

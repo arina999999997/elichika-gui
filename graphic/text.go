@@ -1,7 +1,6 @@
 package graphic
 
 import (
-	"fmt"
 	"unicode/utf8"
 	"unsafe"
 
@@ -14,7 +13,7 @@ type sfFloatRect = graphics.SfFloatRect
 // TODO(text): For now, Text is single line only, ideally we would want it to fit into a box, and use multiple lines if necessary
 
 type Text struct {
-	height int
+	height      int
 	textContent string
 
 	text sfText
@@ -26,7 +25,7 @@ type Text struct {
 
 	canvas *Canvas
 
-	LineSpacingFactor float32 
+	LineSpacingFactor float32
 }
 
 func (t *Text) LoadUTF32(s string) {
@@ -76,22 +75,22 @@ func (t *Text) SetFont(f *Font) {
 	graphics.SfText_setFont(t.text, t.font.font)
 }
 
-func (t* Text) SetCharacterSize(characterSize int) {
+func (t *Text) SetCharacterSize(characterSize int) {
 	InvalidateRenderCache(t)
 	graphics.SfText_setCharacterSize(t.text, uint(characterSize))
 }
 
-func (t* Text) SetLetterSpacing(LetterSpacing float32) {
+func (t *Text) SetLetterSpacing(LetterSpacing float32) {
 	InvalidateRenderCache(t)
 	graphics.SfText_setLetterSpacing(t.text, LetterSpacing)
 }
 
-func (t* Text) SetLineSpacingFactor(lineSpacingFactor float32) {
+func (t *Text) SetLineSpacingFactor(lineSpacingFactor float32) {
 	InvalidateRenderCache(t)
 	t.LineSpacingFactor = lineSpacingFactor
 }
 
-func (t* Text) GetLineSpacing() int {
+func (t *Text) GetLineSpacing() int {
 	return int(t.LineSpacingFactor * float32(graphics.SfFont_getLineSpacing(t.font.font, graphics.SfText_getCharacterSize(t.text))))
 }
 
@@ -105,7 +104,8 @@ func (t *Text) SetColor(color uint) {
 // the actual height of the text is still decided by other factors.
 var hasRune = map[rune]bool{}
 var adaptiveString = "|"
-func (t* Text) SetHeight(height int) {
+
+func (t *Text) SetHeight(height int) {
 	if height >= 256 {
 		panic("text height is too big")
 	}
@@ -116,7 +116,7 @@ func (t* Text) SetHeight(height int) {
 
 	InvalidateRenderCache(t)
 
-	oldText := t.textContent 
+	oldText := t.textContent
 
 	// this is kind of a hack, we try to render a string that is all character we have seen before
 	// there's probably a better way of doing this
@@ -138,14 +138,13 @@ func (t* Text) SetHeight(height int) {
 		if t.GetHeight() > height {
 			break
 		}
-		fmt.Println(t.GetHeight(), height, size)
 		size *= 2
 	}
 	size /= 2
 	finalSize := uint(0)
 	for size > 0 {
 		InvalidateRenderCache(t)
-		graphics.SfText_setCharacterSize(t.text, finalSize + size)
+		graphics.SfText_setCharacterSize(t.text, finalSize+size)
 		if t.GetHeight() <= height {
 			finalSize += size
 		}
@@ -181,7 +180,6 @@ func (t *Text) GetWidth() int {
 }
 func (t *Text) GetHeight() int {
 	t.getBounds()
-	fmt.Println("top, height: ", (*t.bounds).GetTop(), (*t.bounds).GetHeight())
 	return int((*t.bounds).GetTop() + (*t.bounds).GetHeight())
 }
 

@@ -75,12 +75,10 @@ type Enterable interface {
 	OnEnter() bool
 }
 
-
 type Keyable interface {
 	Focusable
 	OnKey(KeyEvent) bool
 }
-
 
 type CompositeObject interface {
 	ForEach(func(Object))

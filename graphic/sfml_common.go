@@ -36,6 +36,6 @@ func GetIntRect(w, h int) graphics.SfIntRect {
 func GetContextSetting() window.SfContextSettings {
 	contextSetting := window.NewSfContextSettings()
 	// contextSetting.SetAntialiasingLevel(16)
-	contextSetting.SetAntialiasingLevel(1)
+	contextSetting.SetAntialiasingLevel(16)
 	return contextSetting
 }

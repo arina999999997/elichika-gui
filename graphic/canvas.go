@@ -34,6 +34,37 @@ func (c *Canvas) Finalize() {
 	c.rendered = true
 }
 
+var commonRenderState graphics.SfRenderStates
+var loadedCommonState = false
+
+func GetRenderState() graphics.SfRenderStates {
+	return (graphics.SfRenderStates)(graphics.SwigcptrSfRenderStates(0))
+	if loadedCommonState {
+		return commonRenderState
+	}
+	loadedCommonState = true
+	commonRenderState = graphics.NewSfRenderStates()
+
+	blendMode := graphics.GetSfBlendAlpha()
+	// defer graphics.DeleteSfBlendMode(blendMode)
+
+	// blendMode.SetColorSrcFactor(6) // BlendMode::Factor::SrcAlpha
+	// // blendMode.SetColorDstFactor(7) // BlendMode::Factor::OneMinusSrcAlpha
+	// blendMode.SetColorDstFactor(1) // BlendMode::Factor::One
+	// blendMode.SetColorEquation(0) // BlendMode::Equation::Add
+	// blendMode.SetAlphaSrcFactor(1) // BlendMode::Factor::One
+	// blendMode.SetAlphaDstFactor(1) // BlendMode::Factor::One
+	// // blendMode.SetAlphaDstFactor(7) // BlendMode::Factor::OneMinusSrcAlpha
+	// blendMode.SetAlphaEquation(0) // BlendMode::Equation::Add
+
+	commonRenderState.SetBlendMode(blendMode)
+
+	// shader := graphics.SfShader_createFromFile("empty", "empty", "empty")
+	// renderState.SetShader(shader)
+
+	return commonRenderState
+}
+
 // draw a texture in a rectangle [x, x + width) x [y, y + height) directly
 // note that width < 0 or height < 0 is not
 func (c *Canvas) DrawTexture(texture *Texture, x, y, width, height int) {
@@ -80,6 +111,7 @@ func (c *Canvas) DrawTexture(texture *Texture, x, y, width, height int) {
 		panic("Unknown style type")
 	}
 	// fmt.Println(width, height, tWidth, tHeight, wScale, hScale)
+	graphics.SfTexture_setSmooth(texture.Texture, 1)
 	sprite := graphics.SfSprite_create()
 	defer graphics.SfSprite_destroy(sprite)
 
@@ -99,18 +131,17 @@ func (c *Canvas) DrawTexture(texture *Texture, x, y, width, height int) {
 			graphics.SfTexture_setRepeated(texture.Texture, 1)
 		}
 		graphics.SfSprite_setTextureRect(sprite, GetIntRect(width, height))
-		graphics.SfRenderTexture_drawSprite(c.renderTexture, sprite, (graphics.SfRenderStates)(graphics.SwigcptrSfRenderStates(0)))
+		graphics.SfRenderTexture_drawSprite(c.renderTexture, sprite, GetRenderState())
 		if repeated == 0 {
 			graphics.SfTexture_setRepeated(texture.Texture, 0)
 		}
 	} else {
-		graphics.SfRenderTexture_drawSprite(c.renderTexture, sprite, (graphics.SfRenderStates)(graphics.SwigcptrSfRenderStates(0)))
+		graphics.SfRenderTexture_drawSprite(c.renderTexture, sprite, GetRenderState())
 	}
 }
 
 func (c *Canvas) DrawSprite(sprite *Sprite) {
-	graphics.SfRenderTexture_drawSprite(c.renderTexture, sprite.Sprite, (graphics.SfRenderStates)(graphics.SwigcptrSfRenderStates(0)))
-
+	graphics.SfRenderTexture_drawSprite(c.renderTexture, sprite.Sprite, GetRenderState())
 }
 
 // this is used to draw a text directly
@@ -136,6 +167,15 @@ func (c *Canvas) AsTexture() *Texture {
 	texture := Texture{}
 	texture.Texture = graphics.SfRenderTexture_getTexture(c.renderTexture)
 	return &texture
+}
+
+func (c *Canvas) UpdateSize(object Object) {
+	size := graphics.SfRenderTexture_getSize(c.renderTexture)
+	if (size.GetX() == uint(object.GetWidth())) && (size.GetY() == uint(object.GetHeight())) {
+		return
+	}
+	graphics.SfRenderTexture_destroy(c.renderTexture)
+	c.renderTexture = graphics.SfRenderTexture_createWithSettings(uint(object.GetWidth()), uint(object.GetHeight()), GetContextSetting())
 }
 
 func NewCanvas(object Object) *Canvas {

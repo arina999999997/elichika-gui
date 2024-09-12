@@ -7,9 +7,9 @@ package graphic
 //   - this allow us to load from memory, and to do preprocessing like decrypting assets
 
 import (
-
 	"elichika/utils"
 
+	"errors"
 	"os"
 	"unsafe"
 
@@ -35,9 +35,12 @@ type Texture struct {
 }
 
 func (t *Texture) LoadFromFile(path string) error {
-	_, err := os.Stat(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		return err
+	}
+	if info.IsDir() {
+		return errors.New("path is directory")
 	}
 	t.Texture = graphics.SfTexture_createFromFile(path, graphics.NewSfIntRect())
 	graphics.SfTexture_setSmooth(t.Texture, 1)
@@ -75,6 +78,14 @@ func DefaultTexture() *Texture {
 	return defaultTexture
 }
 
+func (t *Texture) SetSmooth(smooth bool) {
+	if smooth {
+		graphics.SfTexture_setSmooth(t.Texture, 1)
+	} else {
+		graphics.SfTexture_setSmooth(t.Texture, 0)
+	}
+}
+
 // rgba is provided using a number:
 // - 0xRRGGBBAA
 // where RR, GG, BB, AA is the hex values of each component
@@ -86,7 +97,7 @@ func RGBATexture(rgba uint32) *Texture {
 	bytes[1] = byte((rgba >> 16) % 256)
 	bytes[2] = byte((rgba >> 8) % 256)
 	bytes[3] = byte((rgba >> 0) % 256)
-	graphics.SfTexture_updateFromPixels(texture.Texture , &bytes[0], 1, 1, 0, 0)
+	graphics.SfTexture_updateFromPixels(texture.Texture, &bytes[0], 1, 1, 0, 0)
 	texture.SetStyleType(StyleTypeRepeat)
 	return texture
 }
