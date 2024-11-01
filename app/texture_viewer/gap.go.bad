@@ -1,0 +1,359 @@
+package main
+
+import (
+	"elichika/gui/graphic"
+	"elichika/gui/graphic/button"
+	"elichika/gui/graphic/textbox"
+
+	"bufio"
+	"fmt"
+	"image/jpeg"
+	"image/png"
+	"io"
+	"os/exec"
+	"strings"
+)
+
+type Gap struct {
+	PackName string `xorm:"'pack_name'"`
+	Head     int32  `xorm:"'head'"`
+	Size     int32  `xorm:"'size'"`
+}
+
+// force the program to read one by one, so we know the exact amount of byte necessary
+type ReadCounter struct {
+	io.Reader
+
+	buffers     []byte
+	bufferSize  int
+	bufferIndex int
+}
+
+func NewReadCounter(data []byte) *ReadCounter {
+	c := &ReadCounter{
+		buffers:     data,
+		bufferSize:  len(data),
+		bufferIndex: 0,
+	}
+	return c
+}
+
+func (c *ReadCounter) Read(p []byte) (int, error) {
+	if c.bufferIndex == c.bufferSize {
+		return 0, io.EOF
+	} else {
+		p[0] = c.buffers[c.bufferIndex]
+		c.bufferIndex++
+		return 1, nil
+	}
+}
+
+func TryLoad(format string, textureData RawTexture) (texture *graphic.Texture, size int32) {
+	defer func() {
+		r := recover()
+		if r != nil {
+			texture = nil
+			size = 0
+			fmt.Println(r)
+		}
+	}()
+	file := GetStaticFile(textureData.PackName)
+	if file == "" {
+		fmt.Println("asset pack doesn't exist: %s", textureData.PackName)
+		return
+	}
+	raw := LoadUnencrypted(file, textureData)
+	reader := NewReadCounter(raw)
+	if format == "png" {
+		_, err := png.Decode(reader)
+
+		if err != nil {
+			fmt.Println(err)
+			return nil, 0
+		}
+	} else {
+		_, err := jpeg.Decode(reader)
+
+		if err != nil {
+			fmt.Println(err)
+			return nil, 0
+		}
+
+	}
+
+	texture = &graphic.Texture{}
+	texture.LoadFromMemory(raw[:reader.bufferIndex])
+	size = int32(reader.bufferIndex)
+	return
+}
+
+var brutefocers = map[string]string{}
+var formats = []string{}
+
+func init() {
+	brutefocers["png"] = "gui/app/texture_recovery/find_keys_png.exe"
+	brutefocers["jpg"] = "gui/app/texture_recovery/find_keys_jpg.exe"
+	formats = append(formats, "png")
+	formats = append(formats, "jpg")
+}
+
+var textureChannel = make(chan *graphic.Texture)
+var continueChannel = make(chan bool)
+
+func (t *TextureDisplay) TryResolve(pathToPack, packName string, gap Gap) {
+	for _, format := range formats {
+		program := brutefocers[format]
+		statusChannel <- fmt.Sprint("trying: ", gap, ", ", format)
+		cmd := exec.Command(program, pathToPack, fmt.Sprint(gap.Head))
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			panic(err)
+		}
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			panic(err)
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			panic(err)
+		}
+		go func() {
+			logReader := bufio.NewScanner(stderr)
+			for logReader.Scan() {
+				statusChannel <- fmt.Sprint("progress: ", logReader.Text())
+			}
+		}()
+		err = cmd.Start()
+		if err != nil {
+			panic(err)
+		}
+		go func() {
+			err = cmd.Wait()
+			if err != nil {
+				statusChannel <- fmt.Sprint("bruteforcer crash: ", err)
+			}
+		}()
+		keyReader := bufio.NewScanner(stdout)
+		for keyReader.Scan() {
+			keys := strings.Split(keyReader.Text(), " ")
+			key1 := GetInt32(keys[0])
+			key2 := GetInt32(keys[1])
+			fmt.Println(key1, key2)
+			tempTexture := RawTexture{
+				PackName: packName,
+				Head:     gap.Head,
+				Size:     gap.Size,
+				Key1:     key1,
+				Key2:     key2,
+			}
+			texture, actualSize := TryLoad(format, tempTexture)
+			if texture == nil {
+				io.WriteString(stdin, "0")
+			} else {
+				io.WriteString(stdin, "1")
+				statusChannel <- fmt.Sprint("Found keys that result in a good ", format, ": ", key1, key2)
+				if format == "png" {
+					formats = []string{"png", "jpg"}
+				} else {
+					formats = []string{"jpg", "png"}
+				}
+				textureChannel <- texture
+				tempTexture.Size = actualSize
+				gap.Size -= actualSize
+				gap.Head += actualSize
+				RegisterNewTexture(texture, tempTexture)
+				t.CurrentGap = gap
+				return
+			}
+		}
+	}
+	statusChannel <- fmt.Sprint("Failed to resolve gap using existing formats: ", packName, gap)
+	textureChannel <- nil
+}
+
+func (t *TextureDisplay) ResolveGap(packName string) {
+	var err error
+	tokens := strings.Split(packName, "|")
+	gaps := []Gap{}
+	if len(tokens) == 2 {
+		packName = tokens[0]
+		head := GetInt32(tokens[1])
+		err = session.Table("gap").Where("pack_game = ? AND head = ?", packName, head).Find(&gaps)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		err = session.Table("gap").Where("pack_game = ?", packName).OrderBy("head").Limit(1).Find(&gaps)
+		if err != nil {
+			panic(err)
+		}
+	}
+	path := GetStaticFile(packName)
+	if path == "" {
+		panic("static file not found: " + path)
+	}
+	if len(gaps) == 0 {
+		statusChannel <- "no gap for " + packName
+		textureChannel <- nil
+	} else {
+		t.TryResolve(path, packName, gaps[0])
+	}
+}
+
+func (t *TextureDisplay) SetupGap(w *graphic.Window) {
+	t.GapLabel, t.GapTextbox = textbox.NewLabelAndRectTextbox(t, 500, 50, "Gap: ")
+	t.GapFillButton = &button.RectButton{
+		Width:   200,
+		Height:  50,
+		Texture: graphic.RGBATexture(0x7f7f7fff),
+	}
+	t.GapFillButton.Text = graphic.NewText(t.GapFillButton, "Fill Gap")
+
+	t.AddObject(t.GapLabel, 0)
+	t.AddObject(t.GapTextbox, 5)
+	t.AddObject(t.GapFillButton, 5)
+	var waitForTexture func()
+	waitForContinue := func() {
+		go func() {
+			statusChannel <- "Please choose to continue or stop"
+			continueGap := <-continueChannel
+			if continueGap {
+				statusChannel <- "Continuing"
+				go t.ResolveGap(fmt.Sprint(t.CurrentGap.PackName, "|", t.CurrentGap.Head))
+				go waitForTexture()
+			} else {
+				statusChannel <- "Not continuing with gap filling"
+			}
+		}()
+	}
+	waitForTexture = func() {
+		select {
+		case texture := <-textureChannel:
+			if texture != nil {
+				statusChannel <- fmt.Sprint("Texture found!, new gap: ", t.CurrentGap)
+				w.InternalEvent(func() {
+					t.AssetTexture.Free()
+					t.AssetTexture = texture
+					go waitForContinue()
+				})
+			} else {
+				statusChannel <- "No texture found!"
+			}
+		}
+	}
+	// confirm := func(accept bool) {
+	// 	continueChannel<-accept
+	// 	if !accept {
+	// 		window.SetInternalEvent(waitForTexture)
+	// 	}
+	// }
+
+	fillGapFunc := func() {
+		go t.ResolveGap(t.GapTextbox.TextContent)
+		go waitForTexture()
+	}
+	t.GapFillButton.LeftClickHandler = fillGapFunc
+	t.GapTextbox.OnEnterFunc = fillGapFunc
+	t.GapContinueButton = &button.RectButton{
+		Width:   200,
+		Height:  50,
+		Texture: graphic.RGBATexture(0x7f7f7fff),
+	}
+	t.GapStopButton = &button.RectButton{
+		Width:   200,
+		Height:  50,
+		Texture: graphic.RGBATexture(0x7f7f7fff),
+	}
+	t.GapContinueButton.Text = graphic.NewText(t.GapContinueButton, "Continue")
+	t.GapStopButton.Text = graphic.NewText(t.GapStopButton, "Stop")
+	t.GapContinueButton.LeftClickHandler = func() {
+		select {
+		case continueChannel <- true:
+		default:
+		}
+	}
+	t.GapStopButton.LeftClickHandler = func() {
+		select {
+		case continueChannel <- false:
+		default:
+		}
+	}
+	t.AddObject(t.GapContinueButton, 5)
+	t.AddObject(t.GapStopButton, 5)
+	t.NewLine()
+}
+
+
+// these are for the gap brutefocing system
+func RegisterNewTexture(texture *graphic.Texture, textureData RawTexture) {
+	panic("temporarily disabled")
+	// _, err := session.Table("texture").Insert(textureData)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// SaveTextureAdditionalDetail(textureData, texture)
+	// // update the gap
+	// gap := Gap{}
+	// exist, err := session.Table("gap").Where("pack_game = ? AND head = ?", textureData.PackName, textureData.Head).Get(&gap)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// if exist {
+	// 	gap.Size -= textureData.Size
+	// 	if gap.Size == 0 {
+	// 		_, err = session.Table("gap").Where("pack_game = ? AND head = ?", textureData.PackName, textureData.Head).Delete(&gap)
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 	} else {
+	// 		gap.Head += textureData.Size
+	// 		_, err = session.Table("gap").Where("pack_game = ? AND head = ?", textureData.PackName, textureData.Head).Update(&gap)
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 	}
+
+	// }
+	// flush()
+}
+
+
+// type DetailedTexture struct {
+// 	AssetPath string `xorm:"pk 'asset_path'"`
+// 	PackName  string `xorm:"pk 'pack_name'"`
+// 	Head      int32  `xorm:"'head'"`
+// 	Size      int32  `xorm:"'size'"`
+// 	Key1      int32  `xorm:"'key1'"`
+// 	Key2      int32  `xorm:"'key2'"`
+// 	Width     int32  `xorm:"'width'"`
+// 	Height    int32  `xorm:"'height'"`
+// }
+
+func SaveTextureAdditionalDetail(textureData Texture, texture *graphic.Texture) {
+	panic("temporarily disabled")
+	// d := DetailedTexture{
+	// 	AssetPath: textureData.AssetPath,
+	// 	PackName:  textureData.PackName,
+	// 	Head:      textureData.Head,
+	// 	Size:      textureData.Size,
+	// 	Key1:      textureData.Key1,
+	// 	Key2:      textureData.Key2,
+	// }
+
+	// if texture != nil {
+	// 	w, h := texture.GetSize()
+	// 	d.Width = int32(w)
+	// 	d.Height = int32(h)
+	// }
+
+	// updated, err := session.Table("detailed_texture").Where("asset_path = ? AND pack_name = ?", d.AssetPath, d.PackName).Update(&d)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// if updated == 0 {
+	// 	_, err := session.Table("detailed_texture").Insert(&d)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
+}

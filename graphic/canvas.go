@@ -178,6 +178,25 @@ func (c *Canvas) UpdateSize(object Object) {
 	c.renderTexture = graphics.SfRenderTexture_createWithSettings(uint(object.GetWidth()), uint(object.GetHeight()), GetContextSetting())
 }
 
+func (c *Canvas) UpdateSizeDirect(w, h int) {
+	size := graphics.SfRenderTexture_getSize(c.renderTexture)
+	if (size.GetX() == uint(w)) && (size.GetY() == uint(h)) {
+		return
+	}
+	graphics.SfRenderTexture_destroy(c.renderTexture)
+	c.renderTexture = graphics.SfRenderTexture_createWithSettings(uint(w), uint(h), GetContextSetting())
+}
+
+func (c *Canvas) UpdateSizeFromTexture(texture *Texture) {
+	size := graphics.SfRenderTexture_getSize(c.renderTexture)
+	newWidth, newHeight := texture.GetSize()
+	if (size.GetX() == uint(newWidth)) && (size.GetY() == uint(newHeight)) {
+		return
+	}
+	graphics.SfRenderTexture_destroy(c.renderTexture)
+	c.renderTexture = graphics.SfRenderTexture_createWithSettings(uint(newWidth), uint(newHeight), GetContextSetting())
+}
+
 func NewCanvas(object Object) *Canvas {
 	canvas := Canvas{}
 	canvas.renderTexture = graphics.SfRenderTexture_createWithSettings(uint(object.GetWidth()), uint(object.GetHeight()), GetContextSetting())

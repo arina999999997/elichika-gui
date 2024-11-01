@@ -3,7 +3,7 @@ package textbox
 import (
 	"elichika/gui/graphic"
 
-	"fmt"
+	// "fmt"
 	"strconv"
 	// "math"
 )
@@ -131,13 +131,13 @@ func (rt *RectTextbox) GetParent() graphic.Object {
 // Focusable
 func (rt *RectTextbox) SetFocus() {
 	rt.IsFocused = true
-	fmt.Println("textbox gained focus")
+	// fmt.Println("textbox gained focus")
 	graphic.InvalidateRenderCache(rt)
 }
 
 func (rt *RectTextbox) UnsetFocus() {
 	rt.IsFocused = false
-	fmt.Println("textbox lost focus")
+	// fmt.Println("textbox lost focus")
 	graphic.InvalidateRenderCache(rt)
 }
 
@@ -165,7 +165,7 @@ func (rt *RectTextbox) OnText(event graphic.TextEvent) bool {
 	if !UpdateInputText(&rt.TextContent, event.Rune) {
 		return false
 	}
-	fmt.Println("new text: ", rt.TextContent)
+	// fmt.Println("new text: ", rt.TextContent)
 	graphic.InvalidateRenderCache(rt)
 	if rt.OnTextUpdateFunc != nil {
 		rt.OnTextUpdateFunc()

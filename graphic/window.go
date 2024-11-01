@@ -24,6 +24,9 @@ type Window struct {
 	renderWindow   graphics.Struct_SS_sfRenderWindow
 	object         Object
 
+	internalEvent        chan func()
+	internalEventConfirm chan struct{}
+
 	focusObject Focusable
 }
 
@@ -131,6 +134,7 @@ func (w *Window) DisplayNoPoll() {
 	graphics.SfRenderWindow_display(w.renderWindow)
 }
 
+// Display with polling
 func (w *Window) Display() {
 	w.Render()
 	graphics.SfRenderWindow_display(w.renderWindow)
@@ -205,6 +209,106 @@ func (w *Window) Display() {
 			continue
 		}
 		// if something changed then we redraw
+		w.Render()
+		graphics.SfRenderWindow_display(w.renderWindow)
+	}
+}
+
+// using channel to poll both internal and external event
+// note that updating using internal events will require all update to be done on the main thread
+// otherwise some issue might happens
+// so non rendering resource can be processed using other go routine, but when time come to set them, the main thread must do it
+
+func (w *Window) InternalEvent(f func()) {
+	w.internalEvent <- f
+	<-w.internalEventConfirm
+}
+
+func (w *Window) DisplayWithChannel() {
+	w.internalEvent = make(chan func())
+	w.internalEventConfirm = make(chan struct{})
+	// eventChannel := make(chan window.SfEvent)
+	event := window.NewSfEvent()
+	defer window.DeleteSfEvent(event)
+	w.Render()
+	graphics.SfRenderWindow_display(w.renderWindow)
+	for {
+		// try to read from channel, always interupt if got an event
+		select {
+		case f := <-w.internalEvent:
+			f()
+			w.internalEventConfirm <- struct{}{}
+		default:
+			if graphics.SfRenderWindow_pollEvent(w.renderWindow, event) > 0 {
+				switch event.GetEvType() {
+				case window.SfEventType(window.SfEvtClosed):
+					return
+				case window.SfEventType(window.SfEvtResized):
+					w.UpdateWidthOrHeight()
+				case window.SfEventType(window.SfEvtMouseButtonPressed):
+					mb := event.GetMouseButton()
+					wWidth, wHeight := w.GetSize()
+					nWidth, nHeight := w.GetNativeSize()
+
+					x, y := MapCoordinateIfInside(mb.GetX(), mb.GetY(), 0, 0, wWidth, wHeight, nWidth, nHeight)
+					buttonDownEvent := MouseButtonDownEvent{
+						X: x,
+						Y: y,
+					}
+					switch int(mb.GetButton()) {
+					case window.SfMouseLeft:
+						buttonDownEvent.Button = MouseButtonLeft
+					case window.SfMouseRight:
+						buttonDownEvent.Button = MouseButtonRight
+					case window.SfMouseMiddle:
+						buttonDownEvent.Button = MouseButtonMiddle
+					default:
+						continue
+					}
+					if !HandleEvent(w, w.object, buttonDownEvent) {
+						continue
+					}
+				case window.SfEventType(window.SfEvtTextEntered):
+					textEvent := TextEvent{
+						Rune: rune(event.GetText().GetUnicode()),
+					}
+					if !HandleEvent(w, w.object, textEvent) {
+						fmt.Println("skipped text event: ", textEvent)
+						if textEvent.Rune == 3 {
+							w.SaveToImage("screenshot.png")
+						}
+						continue
+					}
+				case window.SfEventType(window.SfEvtKeyPressed):
+					if (event.GetKey().GetControl() != 0) && (event.GetKey().GetCode() == window.SfKeyCode(window.SfKeyV)) {
+						pasteEvent := PasteEvent{
+							Clipboard: StringFromUTF32(window.SfClipboard_getUnicodeString()),
+						}
+
+						if !HandleEvent(w, w.object, pasteEvent) {
+							fmt.Println("skipped paste event: ", pasteEvent)
+							continue
+						}
+					} else if event.GetKey().GetCode() == window.SfKeyCode(window.SfKeyEnter) {
+						if !HandleEvent(w, w.object, EnterEvent{}) {
+							fmt.Println("skipped enter event")
+							continue
+						}
+					} else {
+						keyEvent, isAllowed := allowedKeyEvent[event.GetKey().GetCode()]
+						if isAllowed {
+							if !HandleEvent(w, w.object, keyEvent) {
+								fmt.Println("skipped key event: ", keyEvent)
+								continue
+							}
+						}
+					}
+				default:
+					// fmt.Println("unhandled event type")
+					continue
+				}
+			}
+		}
 		w.Render()
 		graphics.SfRenderWindow_display(w.renderWindow)
 	}

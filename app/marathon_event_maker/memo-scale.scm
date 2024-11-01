@@ -1,8 +1,0 @@
-(define (memo-scale filename)
-  (let* ((image    (car (gimp-file-load RUN-NONINTERACTIVE filename "")))
-         (drawable (car (gimp-image-active-drawable image)))
-        )
-     (gimp-image-scale-full image 200 200 1)
-     (gimp-file-save  RUN-NONINTERACTIVE image drawable filename "")
-  )
-)

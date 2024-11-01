@@ -10,6 +10,7 @@ import (
 	"elichika/utils"
 
 	"errors"
+	"fmt"
 	"os"
 	"unsafe"
 
@@ -34,6 +35,8 @@ type Texture struct {
 	StyleType int
 }
 
+var textureCnt = 0
+
 func (t *Texture) LoadFromFile(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -42,14 +45,29 @@ func (t *Texture) LoadFromFile(path string) error {
 	if info.IsDir() {
 		return errors.New("path is directory")
 	}
+	textureCnt++
+	fmt.Println("texture count: ", textureCnt)
 	t.Texture = graphics.SfTexture_createFromFile(path, graphics.NewSfIntRect())
 	graphics.SfTexture_setSmooth(t.Texture, 1)
 	return nil
 }
 
 func (t *Texture) LoadFromMemory(data []byte) {
+	textureCnt++
+	fmt.Println("texture count: ", textureCnt)
 	t.Texture = graphics.SfTexture_createFromMemory(uintptr(unsafe.Pointer(&data[0])), int64(len(data)), graphics.NewSfIntRect())
 	graphics.SfTexture_setSmooth(t.Texture, 1)
+}
+
+func (t *Texture) Free() {
+	if t == nil {
+		return
+	}
+	if t.Texture != nil {
+		graphics.SfTexture_destroy(t.Texture)
+		textureCnt--
+		t.Texture = nil
+	}
 }
 
 func (t *Texture) SetStyleType(styleType int) {
